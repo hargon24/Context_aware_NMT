@@ -8,7 +8,7 @@ from itertools import zip_longest
 from collections import defaultdict
 from utilities import *
 
-def sort_batch_length(pool, batch_size):
+def sort_train_batch(pool, batch_size):
     batch = list()
     result = list()
     for document in sorted(pool, key=lambda x:len(x), reverse=True):
@@ -66,13 +66,13 @@ def make_train_batch(source_path, source_vocab, target_path, target_vocab, batch
 
     
     if len(pool) > 0:
-        batch = sort_batch_length(pool, batch_size)
+        batch = sort_train_batch(pool, batch_size)
         random.shuffle(batch)
         for source_batch, target_batch in batch:
             yield source_batch, target_batch
 
 
-def make_test_batch(pool, batch_size):
+def arrange_test_batch(pool, batch_size):
     batch = list()
     result = list()
     for document in pool:
@@ -95,36 +95,42 @@ def make_test_batch(pool, batch_size):
     return result
 
 
-def monolingual_pooling_nodocs(data_path, vocabulary, batch_size, pooling_size=100):
+def make_test_data(data_path, vocabulary, batch_size):
     pool = list()
     document = list()
-    actual_pooling_size = pooling_size * batch_size
-    bos = vocabulary.word2id['<s>']
-    eos = vocabulary.word2id['</s>']
+    bos = [vocabulary.word2id['<s>']]
+    eos = [vocabulary.word2id['</s>']]
+
+    for line in open(data_path):
+        if len(line.strip()) == 0:
+            pool.append(document)
+            document = list()
+        else:
+            sentence = bos + [vocabulary.word2id[word] for word in line.strip().split()] + eos
+            document.append(sentence)
+
+    if len(document) > 0:
+        pool.append(document)
+
+    pool = arrange_test_batch(pool, batch_size)
+    for batch in pool:
+        yield batch
+
+
+def make_pretest_batch(data_path, vocabulary, batch_size):
+    pool = list()
+    bos = [vocabulary.word2id['<s>']]
+    eos = [vocabulary.word2id['</s>']]
     
     for line in open(data_path):
         if len(line.strip()) == 0:
             continue
-        sentence = [vocabulary.word2id[word] for word in line.strip().split()]
-        sentence.insert(0, bos)
-        sentence.append(eos)
+        sentence = bos + [vocabulary.word2id[word] for word in line.strip().split()] + eos
         pool.append(sentence)
-
-        if len(pool) == actual_pooling_size:
-            batch = list()
-            for sent in sorted(pool, key=lambda x:len(x)):
-                batch.append(sent)
-                if len(batch) > batch_size:
-                    yield batch
-                    batch = list()
-            
-            if len(batch) > 0:
-                yield batch
-            pool = list()
     
     if len(pool) > 0:
         batch = list()
-        for sent in sorted(pool, key=lambda x:len(x)):
+        for sent in pool:
             batch.append(sent)
             if len(batch) > batch_size:
                 yield batch
@@ -132,45 +138,61 @@ def monolingual_pooling_nodocs(data_path, vocabulary, batch_size, pooling_size=1
         
         if len(batch) > 0:
             yield batch
+    else:
+        trace('There is no sentence in this file.')
+        exit()
 
 
-def make_test_data(data_path, vocabulary, batch_size, boundary=10):
+def sort_pretrain_batch(pool, batch_size):
+    batch = list()
+    batch_pool = list()
+    for pair in sorted(pool, key=lambda x:len(x[1]), reverse=True):
+        batch.append(pair)
+        if len(batch) == batch_size:
+            source_batch = list()
+            target_batch = list()
+            for ssent, tsent in batch:
+                source_batch.append(ssent)
+                target_batch.append(tsent)
+
+            batch_pool.append(source_batch, target_batch)
+            batch = list()
+    
+    if len(batch) > 0:
+        source_batch = list()
+        target_batch = list()
+        for ssent, tsent in batch:
+            source_batch.append(ssent)
+            target_batch.append(tsent)
+
+        batch_pool.append(source_batch, target_batch)
+        batch = list()
+
+    return batch_pool
+
+
+def make_pretrain_batch(source_path, source_vocab, target_path, target_vocab, batch_size):
     pool = list()
     document = list()
-    bos = vocabulary.word2id['<s>']
-    eos = vocabulary.word2id['</s>']
-
-    if boundary is True:
-        for line in open(data_path):
-            if len(line.strip()) == 0:
-                pool.append(document)
-                document = list()
-            else:
-                sentence = [vocabulary.word2id[word] for word in line.strip().split()]
-                sentence.insert(0, bos)
-                sentence.append(eos)
-                document.append(sentence)
-
-    elif isinstance(boundary, int):
-        for line in open(data_path):
-            if len(line.strip()) == 0:
-                continue
-            sentence = [vocabulary.word2id[word] for word in line.strip().split()]
-            sentence.insert(0, bos)
-            sentence.append(eos)
-            document.append(sentence)
-
-            if len(document) == boundary:
-                pool.append(document)
-                document = list()
+    sbos = [source_vocab.word2id['<s>']]
+    seos = [source_vocab.word2id['</s>']]
+    tbos = [target_vocab.word2id['<s>']]
+    teos = [target_vocab.word2id['</s>']]
     
+    for sline, tline in zip(open(source_path), open(target_path)):
+        if len(line.strip()) == 0:
+            continue
+
+        source_sentence = sbos + [source_vocab.word2id[word] for word in sline.strip().split()] + seos
+        target_sentence = tbos + [target_vocab.word2id[word] for word in tline.strip().split()] + teos
+        pool.append((source_sentence, target_sentence))
+    
+    if len(pool) > 0:
+        batch = sort_pretrain_batch(pool, batch_size)
+        random.shuffle(batch)
+        for source_batch, target_batch in batch:
+            yield source_batch, target_batch
+
     else:
-        trace("Boundary must be set to an integer or a boolean.")
+        trace('There is no sentence in this file.')
         exit()
-    
-    if len(document) > 0:
-        pool.append(document)
-
-    pool = make_test_batch(pool, batch_size)
-    for batch in pool:
-        yield batch

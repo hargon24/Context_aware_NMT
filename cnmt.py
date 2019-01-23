@@ -6,7 +6,6 @@ from utilities import *
 from multitask import *
 from document_utilities import *
 
-
 def train(config):
     if (config.mode == 'train' and config.use_pretrain) or len(sys.argv) == 4:
         if len(sys.argv) == 4:
@@ -57,9 +56,9 @@ def train(config):
     config.target_vocabulary_size = target_vocabulary.size
 
     if config.method == 'separated_source':
-        nmt = SeparatedSourceCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec)
+        nmt = SeparatedCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec, 'source')
     elif config.method == 'separated_target':
-        nmt = SeparatedTargetCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec)
+        nmt = SeparatedCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec, 'target')
     elif config.method == 'shared_source':
         nmt = SharedSourceCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec)
     elif config.method == 'shared_target':
@@ -200,7 +199,7 @@ def test(config):
                     trace("Sentence: {}".format(sentence_num))
 
                     embed_source = [Variable(config.library.array(list(x), dtype=config.library.int32)) for x in zip_longest(*batch_source, fillvalue=-1)]
-                    _, batch_predict, source_attention, target_attention = nmt.forward(embed_source, None)
+                    _, batch_predict, source_attention, target_attention = nmt(embed_source, None)
 
                     result_predict.append(list(cuda.to_cpu(functions.transpose(functions.vstack(batch_predict)).data)))
 
