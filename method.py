@@ -1,3 +1,8 @@
+import sys
+from chainer import *
+from networks import *
+from utilities import *
+
 class SharedTargetCNMT(Chain):
     def __init__(self, source_vocabulary_size, target_vocabulary_size, layer_size, embed_size, hidden_size, bilstm_method, attention_method, activation_method, use_dropout, dropout_rate, use_residual, generation_limit, use_beamsearch, beam_size, library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec):
         super(SharedTargetCNMT, self).__init__(
@@ -113,10 +118,10 @@ class CNMTDecoder(Chain, NetworkFunctions):
             tilde = FeedForwardNetwork(3 * hidden_size, hidden_size, activation_method, use_dropout, dropout_rate, False, False, library),
             output = FeedForwardNetwork(hidden_size, target_vocabulary_size, "None", False, 0.0, False, False, library),
             source_attention = self.select_attention(),
-            target_attention = self.select_attention(),
+            context_attention = self.select_attention(),
         )
 
-    def __call__(self, encoder_hidden_states, encoder_lstm_states, sentence, past_encoder_states=None):
+    def __call__(self, encoder_hidden_states, encoder_lstm_states, sentence):
         predicts = list()
         target_embed_states = list()
         hidden_states = list()
@@ -173,7 +178,7 @@ class CNMTDecoder(Chain, NetworkFunctions):
             initial_beam = [(0, [bos], list(), [hidden_tilde], None, list())]
             encoder_hidden_states = functions.stack(encoder_hidden_states, axis=1)
 
-            _, predicts, decoder_hiddens, _, _, _ = self.beam_search(initial_beam, encoder_hidden_states, encoder_lstm_states)
+            _, predicts, decoder_hiddens, _, _, _ = self.beam_search(initial_beam, encoder_hidden_states, encoder_lstm_states)[0]
             self.context_states = decoder_hiddens
             
             return None, predicts
@@ -181,8 +186,8 @@ class CNMTDecoder(Chain, NetworkFunctions):
     def decode_one_step(self, previous_embed, previous_hidden_tilde):
         hidden = self.lstm(functions.concat((previous_embed, previous_hidden_tilde)))
         attention, _ = self.source_attention(hidden)
-        target_attention, _ = self.target_attention(hidden)
-        hidden_tilde = self.tilde(functions.concat((hidden, attention, target_attention)))
+        context_attention, _ = self.context_attention(hidden)
+        hidden_tilde = self.tilde(functions.concat((hidden, attention, context_attention)))
         score = self.output(hidden_tilde)
         return score, hidden, hidden_tilde
 
@@ -241,12 +246,12 @@ class CNMTDecoder(Chain, NetworkFunctions):
     def set_state(self, encoder_hidden_states, ch_list):
         self.lstm.set_state(ch_list)
         self.source_attention.add_encoder_hidden_states(encoder_hidden_states)
-        self.target_attention.add_encoder_hidden_states(self.context_states)
+        self.context_attention.add_encoder_hidden_states(self.context_states)
 
     def reset_state(self):
         self.lstm.reset_state()
         self.source_attention.reset_state()
-        self.target_attention.reset_state()    
+        self.context_attention.reset_state()    
 
     def set_context_state_shared(self, batch_size):
         #The context attention needs the same batch size between a previous batch and a current batch, even though |cb| > |pb|.
@@ -261,7 +266,7 @@ class CNMTDecoder(Chain, NetworkFunctions):
 
     #The shared model needs a zero vector for applying to the context attention.
     def init_context_state_shared(self, batch_size):
-        self.context_state = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]
+        self.context_states = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]
 
     #The separated model needs a batch consisted of the null sentences for inserting to the context encoder.
     def init_context_state_separated(self, batch_size):
@@ -282,7 +287,6 @@ class SharedMixCNMT(Chain):
         encoder_hidden_states, encoder_states_list = self.encoder(source_sentence)
         self.decoder.set_history(encoder_hidden_states[0].shape[0])
         loss, predicts = self.decoder(encoder_hidden_states, encoder_states_list, target_sentence)
-        #self.decoder.previous_decoder_states = encoder_hidden_states
         self.make_encoding_data(encoder_hidden_states)
         return loss, predicts
 
@@ -291,22 +295,20 @@ class SharedMixCNMT(Chain):
         encoder_hidden_states, encoder_states_list = self.encoder(source_sentence)
         self.decoder.set_history(encoder_hidden_states[0].shape[0])
         loss, predicts, source_attention_weights, target_attention_weights= self.decoder.forward(encoder_hidden_states, encoder_states_list, target_sentence)
-        #self.decoder.previous_decoder_states = encoder_hidden_states
         self.make_encoding_data(encoder_hidden_states)
         return loss, predicts, source_attention_weights, target_attention_weights
    
     def make_encoding_data(self, encoder_hidden_states):
-        encoding_list = list()
+        self.decoder.context_encoder_states = list()
         for state in encoder_hidden_states:
-            encoding_list.append(state.data)
-        self.decoder.previous_encoder_states = encoding_list
+            self.decoder.context_encoder_states.append(state.data)
 
     def reset_states(self):
         self.encoder.reset_state()
         self.decoder.reset_state()
 
-    def initialize_history(self, batch_size):
-        self.decoder.initialize_history(batch_size)
+    def init_context_state(self, batch_size):
+        self.decoder.init_context_state(batch_size)
 
 
 class MixedCNMTDecoder(Chain, NetworkFunctions):
@@ -330,17 +332,15 @@ class MixedCNMTDecoder(Chain, NetworkFunctions):
             lstm = NlayerUniLSTM(layer_size, embed_size + hidden_size, hidden_size, activation_method, use_dropout, dropout_rate, use_residual, self.library),
             tilde = FeedForwardNetwork(3 * hidden_size, hidden_size, activation_method, use_dropout, dropout_rate, False, False, library),
             output = FeedForwardNetwork(hidden_size, target_vocabulary_size, "None", False, 0.0, False, False, library),
-            source_attention = self.select_attention(),
-            past_target_attention = self.select_attention(),
-            past_source_attention = self.select_attention()
+            attention = self.select_attention(),
+            source_context_attention = self.select_attention(),
+            target_context_attention = self.select_attention()
         )
 
-    def __call__(self, encoder_hidden_states, encoder_lstm_states, sentence, past_encoder_states=None):
+    def __call__(self, encoder_hidden_states, encoder_lstm_states, sentence):
         predicts = list()
         target_embed_states = list()
         hidden_states = list()
-        source_attention_weights = list()
-        target_attention_weights = list()
 
         if sentence is not None:
             loss = Variable(self.library.zeros((), dtype = self.library.float32))
@@ -351,14 +351,14 @@ class MixedCNMTDecoder(Chain, NetworkFunctions):
             self.set_state(self.stack_list_to_axis_1(encoder_hidden_states), encoder_lstm_states, None)
             
             for i, (previous_embed, correct_word) in enumerate(zip(target_embed_states, sentence[1:])):
-                score, hidden, hidden_tilde, _, _ = self.decode_one_step(previous_embed, hidden_tilde)
+                score, hidden, hidden_tilde = self.decode_one_step(previous_embed, hidden_tilde)
                 hidden_states.append(hidden.data)
                 predict = functions.argmax(score, axis = 1)
                 loss += functions.softmax_cross_entropy(score, correct_word, ignore_label = -1)
                 predicts.append(functions.where(correct_word.data != -1, predict, correct_word))
             xs, batch_size, sentence_length = self.stack_variable_list_to_batch_axis_for_1d(predicts)
             
-            self.previous_decoder_states = hidden_states
+            self.context_decoder_states = hidden_states
             
             return loss, predicts
 
@@ -371,9 +371,7 @@ class MixedCNMTDecoder(Chain, NetworkFunctions):
 
             while len(predicts) - 1 < self.generation_limit:
                 previous_embed = self.embedding(predict)
-                score, hidden, hidden_tilde, source_attention, target_attention = self.decode_one_step(previous_embed, hidden_tilde)
-                source_attention_weights.append(source_attention)
-                target_attention_weights.append(target_attention)
+                score, hidden, hidden_tilde = self.decode_one_step(previous_embed, hidden_tilde)
                 hidden_states.append(hidden.data)
 
                 predict = functions.argmax(score, axis = 1)
@@ -384,38 +382,32 @@ class MixedCNMTDecoder(Chain, NetworkFunctions):
             if batch_size == 1 and predict.data[0] != self.vocabulary.word2id["</s>"]:
                 eos = Variable(self.library.array([self.vocabulary.word2id["</s>"]], dtype = self.library.int32))
                 predicts.append(eos)
-        
-            source_attention_weights = self.stack_list_to_axis_1(source_attention_weights)
-            target_attention_weights = self.stack_list_to_axis_1(target_attention_weights)
-            self.previous_decoder_states = hidden_states    
 
-            return None, predicts, source_attention_weights, target_attention_weights
+            self.context_decoder_states = hidden_states    
+
+            return None, predicts
         
         else:
             bos = Variable(self.library.array([1], dtype = self.library.int32))
             hidden_tilde = Variable(self.library.zeros((1, self.hidden_size), dtype = self.library.float32))
-            #initial_beam = [log_probability, predict, decoder_hiddens, decoder_tildes, decoder_lstm_states, source_attention_weights, target_attention_weights, finished]
+            #initial_beam: [log_probability, predict, decoder_hiddens, decoder_tildes, decoder_lstm_states, finished]
             initial_beam = [(0, [bos], list(), [hidden_tilde], None, list(), list(), list())]
             encoder_hidden_states = functions.stack(encoder_hidden_states, axis=1)
-            #decoder_hidden_states = functions.stack(decoder_hidden_states, axis=1)
 
-            for _, predicts, decoder_hiddens, _, _, source_attention_weights, target_attention_weights, _ in sorted(self.beam_search(initial_beam, encoder_hidden_states, encoder_lstm_states), key = lambda x: self.beam_search_normalization(x[0].data, len(x[1])), reverse = True):
-                source_attention_weights = functions.stack(source_attention_weights, axis = 1)
-                target_attention_weights = functions.stack(target_attention_weights, axis = 1)
-                break
-            self.previous_decoder_states = decoder_hiddens
+            _, predicts, decoder_hiddens, _, _, _ = self.beam_search(initial_beam, encoder_hidden_states, encoder_lstm_states)[0]
+            self.context_decoder_states = decoder_hiddens
             
-            return None, predicts, source_attention_weights, target_attention_weights
+            return None, predicts
             
     def decode_one_step(self, previous_embed, previous_hidden_tilde):
         hidden = self.lstm(functions.concat((previous_embed, previous_hidden_tilde)))
-        attention, attention_weights = self.source_attention(hidden)
-        target_attention, target_attention_weights = self.past_target_attention(hidden)
-        past_target_attention, past_target_attention_weight = self.past_source_attention(hidden)
-        mixed_attention = target_attention + past_target_attention
+        attention, _ = self.attention(hidden)
+        target_attention, _ = self.target_context_attention(hidden)
+        source_attention, _ = self.source_context_attention(hidden)
+        mixed_attention = target_attention + source_attention
         hidden_tilde = self.tilde(functions.concat((hidden, attention, mixed_attention)))
         score = self.output(hidden_tilde)
-        return score, hidden, hidden_tilde, attention_weights, target_attention_weights
+        return score, hidden, hidden_tilde
 
     def beam_search(self, initial_beam, encoder_hidden_states, encoder_lstm_states):
         beam = [0] * self.generation_limit
@@ -423,30 +415,30 @@ class MixedCNMTDecoder(Chain, NetworkFunctions):
             beam[i] = list()
             if i == 0:
                 new_beam = list()
-                for logprob, predicts, decoder_hiddens, decoder_tildes, decoder_lstm_states, source_attention_weights, target_attention_weights, finished in initial_beam:
+                for logprob, predicts, decoder_hiddens, decoder_tildes, decoder_lstm_states, finished in initial_beam:
                     self.set_state(encoder_hidden_states, encoder_lstm_states, None)
                     previous_embed = self.embedding(predicts[-1])
-                    score, hidden, hidden_tilde, source_attention, target_attention = self.decode_one_step(previous_embed, decoder_tildes[-1])
+                    score, hidden, hidden_tilde = self.decode_one_step(previous_embed, decoder_tildes[-1])
                     prob = functions.softmax(score)
                     lstm_state, attention_states = self.get_state()
                     for predict in self.library.argsort(prob.data[0])[-1:-self.beam_size-1:-1]:
                         predict_variable = Variable(self.library.array([predict], dtype = self.library.int32))
-                        new_beam.append((logprob + functions.log(prob[0][predict]), predicts + [predict_variable], decoder_hiddens + [hidden.data], decoder_tildes + [hidden_tilde], lstm_state, source_attention_weights + [functions.reshape(source_attention, (source_attention.shape[0], source_attention.shape[1]))], target_attention_weights + [functions.reshape(target_attention, (target_attention.shape[0], target_attention.shape[1]))], True if predict == 2 else False)) 
+                        new_beam.append((logprob + functions.log(prob[0][predict]), predicts + [predict_variable], decoder_hiddens + [hidden.data], decoder_tildes + [hidden_tilde], lstm_state, True if predict == 2 else False)) 
             
             else:
                 new_beam = list()
-                for logprob, predicts, decoder_hiddens, decoder_tildes, decoder_lstm_states, source_attention_weights, target_attention_weights, finished in beam[i - 1]:
+                for logprob, predicts, decoder_hiddens, decoder_tildes, decoder_lstm_states, finished in beam[i - 1]:
                     if finished is not True:
                         self.set_state(encoder_hidden_states, decoder_lstm_states, None)
                         previous_embed = self.embedding(predicts[-1])
-                        score, hidden, hidden_tilde, source_attention, target_attention = self.decode_one_step(previous_embed, decoder_tildes[-1])
+                        score, hidden, hidden_tilde = self.decode_one_step(previous_embed, decoder_tildes[-1])
                         prob = functions.softmax(score)
                         lstm_state, attention_states = self.get_state()
                         for predict in self.library.argsort(prob.data[0])[-1:-self.beam_size-1:-1]:
                             predict_variable = Variable(self.library.array([predict], dtype = self.library.int32))
-                            new_beam.append((logprob + functions.log(prob[0][predict]), predicts + [predict_variable], decoder_hiddens + [hidden.data], decoder_tildes + [hidden_tilde], lstm_state, source_attention_weights + [functions.reshape(source_attention, (source_attention.shape[0], source_attention.shape[1]))], target_attention_weights + [functions.reshape(target_attention, (target_attention.shape[0], target_attention.shape[1]))], True if predict == 2 else False)) 
+                            new_beam.append((logprob + functions.log(prob[0][predict]), predicts + [predict_variable], decoder_hiddens + [hidden.data], decoder_tildes + [hidden_tilde], lstm_state, True if predict == 2 else False)) 
                     else:
-                        new_beam.append((logprob, predicts, decoder_hiddens, decoder_tildes, decoder_lstm_states, source_attention_weights, target_attention_weights, finished))
+                        new_beam.append((logprob, predicts, decoder_hiddens, decoder_tildes, decoder_lstm_states, finished))
             
             for _, items in zip(range(self.beam_size), sorted(new_beam, key = lambda x: self.beam_search_normalization(x[0].data, len(x[1])), reverse = True)):
                 beam[i].append(items)
@@ -457,9 +449,7 @@ class MixedCNMTDecoder(Chain, NetworkFunctions):
         return score / length
 
     def select_attention(self):
-        if self.attention_method == "Tu":
-            return AttentionTu(self.hidden_size, 10, self.library)
-        elif self.attention_method == "Bahdanau":
+        if self.attention_method == "Bahdanau":
             return AttentionBahdanau(self.hidden_size)
         elif self.attention_method == "LuongDot":
             return AttentionLuongDot()
@@ -469,32 +459,29 @@ class MixedCNMTDecoder(Chain, NetworkFunctions):
             return AttentionLuongConcat(self.hidden_size)
 
     def get_state(self):
-        return self.lstm.get_state(), self.attention.get_state() if self.attention_method == "Tu" else None
+        return self.lstm.get_state()
 
-    def set_state(self, encoder_hidden_states, ch_list, attention_chc):
+    def set_state(self, encoder_hidden_states, ch_list):
         self.lstm.set_state(ch_list)
-        self.source_attention.add_encoder_hidden_states(encoder_hidden_states)
-        self.past_source_attention.add_encoder_hidden_states(self.encoder_hidden_states)
-        self.past_target_attention.add_encoder_hidden_states(self.decoder_hidden_states)
-
-        if self.attention_method == "Tu" and attention_chc is not None:
-            self.attention.set_state(*attention_chc)
+        self.attention.add_encoder_hidden_states(encoder_hidden_states)
+        self.source_context_attention.add_encoder_hidden_states(self.context_encoder_states)
+        self.target_context_attention.add_encoder_hidden_states(self.context_decoder_states)
 
     def reset_state(self):
         self.lstm.reset_state()
-        self.source_attention.reset_state()
-        self.past_source_attention.reset_state()
-        self.past_target_attention.reset_state()
+        self.attention.reset_state()
+        self.source_context_attention.reset_state()
+        self.target_context_attention.reset_state()
 
     def set_history(self, batch_size):
-        pad = self.previous_decoder_states[:batch_size]
-        self.previous_decoder_states += pad
-        self.decoder_hidden_states = self.stack_list_to_axis_1([Variable(state) for state in self.previous_decoder_states])
+        pad = self.context_decoder_states[:batch_size]
+        self.context_decoder_states += pad
+        self.context_decoder_states = self.stack_list_to_axis_1([Variable(state) for state in self.context_decoder_states])
 
-        pad = self.previous_encoder_states[:batch_size]
-        self.previous_encoder_states += pad
-        self.encoder_hidden_states = self.stack_list_to_axis_1([Variable(state) for state in self.previous_encoder_states])
+        pad = self.context_encoder_states[:batch_size]
+        self.context_encoder_states += pad
+        self.context_encoder_states = self.stack_list_to_axis_1([Variable(state) for state in self.context_encoder_states])
 
-    def initialize_history(self, batch_size):
-        self.previous_decoder_states = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]
-        self.previous_encoder_states = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]
+    def init_context_state(self, batch_size):
+        self.context_decoder_states = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]
+        self.context_encoder_states = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]

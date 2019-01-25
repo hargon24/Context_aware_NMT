@@ -3,7 +3,7 @@ import sys
 from chainer import *
 from networks import *
 from utilities import *
-from multitask import *
+from method import *
 from document_utilities import *
 
 def train(config):
@@ -42,7 +42,7 @@ def train(config):
             target_word2vec = Word2vec.load(config.target_word2vec_file)
             source_word2vec.save("{}.source_word2vec".format(config.model))
             target_word2vec.save("{}.target_word2vec".format(config.model))
-        elif config.word2vec_method == "Make"
+        elif config.word2vec_method == "Make":
             trace("Making Word2vec ...")
             source_word2vec = Word2vec.make(config.source_train, config.word2vec_method, config.embed_size, config.word2vec_window_size)
             target_word2vec = Word2vec.make(config.target_train, config.word2vec_method, config.embed_size, config.word2vec_window_size)
@@ -56,14 +56,19 @@ def train(config):
     config.target_vocabulary_size = target_vocabulary.size
 
     if config.method == 'separated_source':
+        trace('Choosing Separated Source Model ... ')
         nmt = SeparatedCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec, 'source')
     elif config.method == 'separated_target':
+        trace('Choosing Separated Target Model ... ')
         nmt = SeparatedCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec, 'target')
     elif config.method == 'shared_source':
+        trace('Choosing Shared Source Model ... ')
         nmt = SharedSourceCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec)
     elif config.method == 'shared_target':
+        trace('Choosing Shared Target Model ... ')
         nmt = SharedTargetCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec)
     elif config.method == 'shared_mix':
+        trace('Choosing Shared Mix Model ... ')
         nmt = SharedMixCNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, config.use_dropout, config.dropout_rate, config.use_residual, None, False, None, config.library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec)
 
     if config.use_pretrain:
@@ -84,7 +89,8 @@ def train(config):
     opt.setup(nmt)
     opt.add_hook(optimizer.GradientClipping(config.clipping_threshold))
 
-    elif start > 0:
+    if start > 0:
+        trace('Loading the weights and optimizer at Epoch {} ...'.format(config.start))
         serializers.load_npz("{}.{:03d}.weights".format(config.model, start), nmt)
         serializers.load_npz("{}.{:03d}.optimizer".format(config.model, start), opt)
 
@@ -99,7 +105,7 @@ def train(config):
         for document_source, document_target in make_train_batch(config.source_train, source_vocabulary, config.target_train, target_vocabulary, config.batch_size):
             batch_num += 1
             trace("Batch: {}".format(batch_num))
-            nmt.initialize_history(len(document_source[0]))
+            nmt.init_context_state(len(document_source[0]))
             result_predict = list()
 
             sentence_num = 0
@@ -111,7 +117,7 @@ def train(config):
                 embed_target = [Variable(config.library.array(list(x), dtype=config.library.int32)) for x in zip_longest(*batch_target, fillvalue=-1)]
                 loss, batch_predict = nmt(embed_source, embed_target)
                 accum_loss += loss.data * batch_predict[0].shape[0]
-                trace('Sentence: {}, Loss: {}'.format(sentence_num, loss.data * batch_predict[0].shape[0]))
+                trace('Sentence: {}, Loss: {}'.format(sentence_num, loss.data))
                 loss.backward()
                 loss.unchain_backward()
                 opt.update()
@@ -189,7 +195,7 @@ def test(config):
             for document_source in make_test_data(config.source_file, source_vocabulary, config.batch_size, config.boundary):
                 batch_num += 1
                 trace("Batch: {}".format(batch_num))
-                nmt.initialize_history(len(document_source[0]))
+                nmt.init_context_state(len(document_source[0]))
                 result_predict = list()
 
                 sentence_num = 0
@@ -221,8 +227,7 @@ def test(config):
 
 
 if __name__ == "__main__":
-    config = Configuration(sys.argv[2], sys.argv[3])
-    config.method = sys.argv[1]
+    config = Configuration(sys.argv[1], sys.argv[2])
     if config.mode == "train":
         train(config)
 
@@ -242,10 +247,10 @@ if __name__ == "__main__":
         config.source_file = config.source_dev
         model = config.model
         if len(sys.argv) == 5:
-            start = int(sys.argv[4]) - 1
-            end = int(sys.argv[5])
+            start = int(sys.argv[3]) - 1
+            end = int(sys.argv[4])
         elif len(sys.argv) == 4:
-            start = int(sys.argv[4]) - 1
+            start = int(sys.argv[3]) - 1
             end = config.epoch
         else:
             start = 0
