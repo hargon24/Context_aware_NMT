@@ -485,3 +485,28 @@ class MixedCNMTDecoder(Chain, NetworkFunctions):
     def init_context_state(self, batch_size):
         self.context_decoder_states = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]
         self.context_encoder_states = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]
+
+class AttentionalNMT(Chain):
+    def __init__(self, source_vocabulary_size, target_vocabulary_size, layer_size, embed_size, hidden_size, bilstm_method, attention_method, activation_method, use_dropout, dropout_rate, use_residual, generation_limit, use_beamsearch, beam_size, library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec):
+        super(AttentionalNMT, self).__init__(
+            encoder = RNNEncoder(bilstm_method, layer_size, source_vocabulary_size, embed_size, hidden_size, activation_method, use_dropout, dropout_rate, use_residual, library, source_vocabulary, source_word2vec),
+            decoder = RNNDecoder(layer_size, target_vocabulary_size, embed_size, hidden_size, activation_method, use_dropout, dropout_rate, use_residual, attention_method, generation_limit, use_beamsearch, beam_size, library, target_vocabulary, target_word2vec),
+		)
+        self.library = library
+        self.hidden_size = hidden_size
+
+    def __call__(self, source_sentence, target_sentence):
+        self.reset_states()
+        encoder_hidden_states, encoder_states_list = self.encoder(source_sentence)
+        loss, predicts = self.decoder(encoder_hidden_states, encoder_states_list, target_sentence)
+        return loss, predicts
+
+    def forward(self, source_sentence, target_sentence):
+        self.reset_states()
+        encoder_hidden_states, encoder_states_list = self.encoder(source_sentence)
+        loss, predicts, decoder_hidden_states, decoder_lstm_states, target_embed_states, predict_embed_states, attention_matrix = self.decoder.forward(encoder_hidden_states, encoder_states_list, target_sentence)
+        return loss, predicts, attention_matrix, None
+    
+    def reset_states(self):
+        self.encoder.reset_state()
+        self.decoder.reset_state()

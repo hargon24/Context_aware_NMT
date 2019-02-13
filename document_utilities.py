@@ -155,7 +155,7 @@ def sort_pretrain_batch(pool, batch_size):
                 source_batch.append(ssent)
                 target_batch.append(tsent)
 
-            batch_pool.append(source_batch, target_batch)
+            batch_pool.append((source_batch, target_batch))
             batch = list()
     
     if len(batch) > 0:
@@ -165,7 +165,7 @@ def sort_pretrain_batch(pool, batch_size):
             source_batch.append(ssent)
             target_batch.append(tsent)
 
-        batch_pool.append(source_batch, target_batch)
+        batch_pool.append((source_batch, target_batch))
         batch = list()
 
     return batch_pool
@@ -180,7 +180,7 @@ def make_pretrain_batch(source_path, source_vocab, target_path, target_vocab, ba
     teos = [target_vocab.word2id['</s>']]
     
     for sline, tline in zip(open(source_path), open(target_path)):
-        if len(line.strip()) == 0:
+        if len(sline.strip()) == 0:
             continue
 
         source_sentence = sbos + [source_vocab.word2id[word] for word in sline.strip().split()] + seos
@@ -196,3 +196,13 @@ def make_pretrain_batch(source_path, source_vocab, target_path, target_vocab, ba
     else:
         trace('There is no sentence in this file.')
         exit()
+
+def make_sentence(word_list, vocabulary):
+    sentence = [vocabulary.id2word[i] for i in list(word_list)]
+    
+    if "</s>" in sentence:
+        return " ".join(sentence[sentence.index("<s>") + 1: sentence.index("</s>")])
+    elif "<s>" not in sentence:
+        return "NULL"
+    else:
+        return " ".join(sentence[sentence.index("<s>") + 1:])

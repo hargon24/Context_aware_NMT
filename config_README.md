@@ -11,12 +11,13 @@ use_dev_gpu: (bool)
 use_test_gpu: (bool)  
 gpu_device: GPU's ID (This program doesn't have multi-node mode.) (int)  
 
-word2vec_method: [Make / Load / None] (str)  
+word2vec: [Make / Load / None] (str)  
+word2vec_method: [CBoW / Skip-Gram] (str)  
 word2vec_window_size: (int)  
 source_word2vec_file: path to word2vec file of source side. (str)  
 target_word2vec_file: path to word2vec file of target side. (str)  
 
-vocabulary_method: [Make / Load] (str)  
+vocabulary: [Make / Load] (str)  
 source_vocabulary_file: path to vocabulary file of source side (str)  
 target_vocabulary_file: path to vocabulary file of source side (str)  
 

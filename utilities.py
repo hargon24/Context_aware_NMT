@@ -473,7 +473,7 @@ def make_weights(initial_seed, in_size, out_size, library):
     else:
         return None
 
-def copy_model(src, dst):
+def load_pretrain_model(src, dst):
     assert isinstance(src, link.Chain)
     assert isinstance(dst, link.Chain)
     for child in src.children():
