@@ -485,7 +485,7 @@ def load_pretrain_model(src, dst):
             continue
         
         if isinstance(child, link.Chain):
-            copy_model(child, dst_child)
+            load_pretrain_model(child, dst_child)
         
         if isinstance(child, link.Link):
             match = True

@@ -87,7 +87,6 @@ def train(config):
             opt.update()
 
             predict_result = list(cuda.to_cpu(functions.transpose(functions.vstack(batch_predict)).data))
-            trace(predict_result)
 
             if config.make_summarized_log is False:
                 for i in range(len(predict_result)): 
@@ -120,7 +119,7 @@ def test(config):
     trace('Loading Model ...')
     nmt = AttentionalNMT(config.source_vocabulary_size, config.target_vocabulary_size, config.layer_size, config.embed_size, config.hidden_size, config.bilstm_method, config.attention_method, config.activation_method, False, 0.0, config.use_residual, config.generation_limit, config.use_beamsearch, config.beam_size, config.library, source_vocabulary, target_vocabulary, None, None)
 
-    serializers.load_npz('{}.{:03d}.weights'.format(config.model, config.model_number), nmt)
+    serializers.load_npz('{}.{:03d}.pretrain_weights'.format(config.model, config.model_number), nmt)
         
     if config.use_gpu:
         cuda.get_device(config.gpu_device).use()
@@ -130,7 +129,7 @@ def test(config):
     with open(config.predict_file, 'w') as wf:
         batch_num = 0
         sentence_num = 0
-        for batch_source in make_pretest_data(config.source_file, source_vocabulary, config.batch_size):
+        for batch_source in make_pretest_batch(config.source_file, source_vocabulary, config.batch_size):
             nmt.cleargrads()
             batch_num += 1
             trace('Batch: {}'.format(batch_num))
@@ -138,7 +137,7 @@ def test(config):
             embed_source = [Variable(config.library.array(list(x), dtype=config.library.int32)) for x in zip_longest(*batch_source, fillvalue=-1)]
             _, batch_predict = nmt(embed_source, None)
 
-            result_predict = list(cuda.to_cpu(functions.transpose(functions.vstack(batch_predict)).data))
+            predict_result = list(cuda.to_cpu(functions.transpose(functions.vstack(batch_predict)).data))
 
             for i in range(len(predict_result)):
                 sentence_num += 1
@@ -146,8 +145,6 @@ def test(config):
                 trace('Sentence: {}'.format(sentence_num))
                 wf.write('{}\n'.format(predict_sentence))
             
-            wf.write('\n')
-
 
 if __name__ == '__main__':
     config = Configuration(sys.argv[1], sys.argv[2])

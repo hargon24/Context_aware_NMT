@@ -118,7 +118,7 @@ def make_test_data(data_path, vocabulary, batch_size):
 
 
 def make_pretest_batch(data_path, vocabulary, batch_size):
-    pool = list()
+    batch = list()
     bos = [vocabulary.word2id['<s>']]
     eos = [vocabulary.word2id['</s>']]
     
@@ -126,18 +126,13 @@ def make_pretest_batch(data_path, vocabulary, batch_size):
         if len(line.strip()) == 0:
             continue
         sentence = bos + [vocabulary.word2id[word] for word in line.strip().split()] + eos
-        pool.append(sentence)
-    
-    if len(pool) > 0:
-        batch = list()
-        for sent in pool:
-            batch.append(sent)
-            if len(batch) > batch_size:
-                yield batch
-                batch = list()
-        
-        if len(batch) > 0:
+        batch.append(sentence)
+        if len(batch) == batch_size:
             yield batch
+            batch = list()
+        
+    if len(batch) > 0:
+        yield batch
     else:
         trace('There is no sentence in this file.')
         exit()
@@ -196,6 +191,7 @@ def make_pretrain_batch(source_path, source_vocab, target_path, target_vocab, ba
     else:
         trace('There is no sentence in this file.')
         exit()
+
 
 def make_sentence(word_list, vocabulary):
     sentence = [vocabulary.id2word[i] for i in list(word_list)]
