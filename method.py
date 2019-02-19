@@ -77,14 +77,19 @@ class SeparatedCNMT(Chain):
 
         self.library = library
         self.hidden_size = hidden_size
+        self.encode_type = encode_type
 
-    def __call__(self, source_sentence, target_sentence, context_sentence):
+    def __call__(self, source_sentence, target_sentence):
         self.reset_states()
         encoder_hidden_states, encoder_states_list = self.encoder(source_sentence)
-        context_hidden_states, _ = self.context_encoder(context_sentence)
+        context_hidden_states, _ = self.context_encoder(self.decoder.context_sentence)
         self.decoder.context_states = context_hidden_states
         self.decoder.set_context_state_separated(encoder_hidden_states[0].shape[0])
         loss, predicts = self.decoder(encoder_hidden_states, encoder_states_list, target_sentence)
+        if self.encode_type == 'source':
+            self.decoder.context_sentence = source_sentence
+        else:
+            self.decoder.context_sentence = target_sentence
         return loss, predicts
     
     def reset_states(self):
@@ -270,7 +275,7 @@ class CNMTDecoder(Chain, NetworkFunctions):
 
     #The separated model needs a batch consisted of the null sentences for inserting to the context encoder.
     def init_context_state_separated(self, batch_size):
-        self.context_sentence = [Variable(config.library.array([-1] * batch_size, dtype=config.library.int32))]
+        self.context_sentence = [Variable(self.library.array([-1] * batch_size, dtype=self.library.int32))]
 
 
 class SharedMixCNMT(Chain):
