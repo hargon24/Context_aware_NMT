@@ -132,7 +132,6 @@ def test(config):
         for batch_source in make_pretest_batch(config.source_file, source_vocabulary, config.batch_size):
             nmt.cleargrads()
             batch_num += 1
-            trace('Batch: {}'.format(batch_num))
 
             embed_source = [Variable(config.library.array(list(x), dtype=config.library.int32)) for x in zip_longest(*batch_source, fillvalue=-1)]
             _, batch_predict = nmt(embed_source, None)
@@ -142,7 +141,7 @@ def test(config):
             for i in range(len(predict_result)):
                 sentence_num += 1
                 predict_sentence = make_sentence(predict_result[i], target_vocabulary)
-                trace('Sentence: {}'.format(sentence_num))
+                trace('Batch: {}, Sentence: {}'.format(batch_num, sentence_num))
                 wf.write('{}\n'.format(predict_sentence))
             
 

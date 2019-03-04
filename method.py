@@ -88,8 +88,11 @@ class SeparatedCNMT(Chain):
         loss, predicts = self.decoder(encoder_hidden_states, encoder_states_list, target_sentence)
         if self.encode_type == 'source':
             self.decoder.context_sentence = source_sentence
+        elif self.encode_type == 'target' and target_sentence == None:
+            self.decoder.context_sentence = Variable(functions.vstack(predicts).data)
         else:
             self.decoder.context_sentence = target_sentence
+
         return loss, predicts
     
     def reset_states(self):
@@ -145,7 +148,6 @@ class CNMTDecoder(Chain, NetworkFunctions):
                 predict = functions.argmax(score, axis = 1)
                 loss += functions.softmax_cross_entropy(score, correct_word, ignore_label = -1)
                 predicts.append(functions.where(correct_word.data != -1, predict, correct_word))
-            xs, batch_size, sentence_length = self.stack_variable_list_to_batch_axis_for_1d(predicts)
             
             self.context_states = hidden_states
             
