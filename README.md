@@ -6,7 +6,7 @@ Bawden et al.（NAACL2018）の手法に少し改変を加えたものになっ�
 これを用いた研究については、言語処理学会第25回年次大会で発表しました。  
 
 ## 動作環境
-Python 3.5.1 <    
+Python 3.5.1 以上   
 必要なものは以下の通りです。
 - Chainer 3.3.0
 - Cupy 2.3.0
@@ -31,25 +31,24 @@ Python 3.5.1 <
 
 #### Step2
 [Luong+, EMNLP2015] と共通部分について事前学習します。  
-config_fileの書き方は[readme_config](https://github.com/hargon24/Context_aware_NMT/blob/master/config_README.md)を参考にしてください。
-
+事前学習しない場合は何もせずStep3へ進みます。  
+config_fileの書き方は[config_readme](https://github.com/hargon24/Context_aware_NMT/blob/master/config_readme.md)や[sample.config](https://github.com/hargon24/Context_aware_NMT/blob/master/sample.config)を参考にしてください。  
 ```
 python pretrain.py train config_file [restart_epoch]  
-python pretrain.py dev config_file [start_epoch] [end_epoch]
+python pretrain.py dev config_file [start_epoch [end_epoch] ]
 ```
-DevのBLEUが最も良いEpochを選び、その番号をconfig_fileに書き込みます。  
-Testは任意で実行してください。
+devのBLEUが最も良いEpochを選び、その番号をconfig_fileに書き込みます。  
+testは任意で実行してください。
 ```
 python pretrain.py test config_file test_epoch
 ```
 
 #### Step3
-文脈つきNMTの学習を実行
-
+文脈つきNMTの学習を実行します。  
 
 ```
 python cnmt.py train config_file [restart_epoch] 
-python cnmt.py dev config_file [start_epoch] [end_epoch] 
+python cnmt.py dev config_file [start_epoch [end_epoch] ] 
 python cnmt.py test config_file test_epoch  
 ```
 

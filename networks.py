@@ -1,10 +1,5 @@
 from chainer import *
-
 import sys
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import *
-from sklearn.manifold import TSNE
 
 class NetworkFunctions():
     def activate(self, x):
@@ -138,19 +133,6 @@ class WordEmbedding(Chain, NetworkFunctions):
 
     def __call__(self, x):
         return self.dropout(self.activate(self.word2embed(x)))
-
-    def visualization(self, path, start, end):
-        words = [self.vocabulary.id2word[i] for i in range(start - 1, end)]
-        vectors = [self.word2embed.W.data[i] for i in range(start - 1, end)]
-
-        fp = font_manager.FontProperties(fname='/usr/share/fonts/truetype/fonts-japanese-gothic.ttf')
-        tsne = TSNE(init = "pca", random_state = 1)
-        new_vectors = tsne.fit_transform(vectors)
-        fig, ax = pyplot.subplots()
-        ax.scatter(new_vectors[:, 0], new_vectors[:, 1], s=5)
-        for index, label in enumerate(words):
-            ax.annotate(label, xy=(new_vectors[index, 0], new_vectors[index, 1]), fontproperties = fp, fontsize=8)
-        pyplot.savefig(path)
 
 class UniLSTM(Chain, NetworkFunctions):
     def __init__(self, input_size, hidden_size, activation_method, use_dropout, dropout_rate, use_residual, library):
