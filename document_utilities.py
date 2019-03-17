@@ -197,9 +197,9 @@ def make_pretrain_batch(source_path, source_vocab, target_path, target_vocab, ba
 def make_sentence(word_list, vocabulary):
     sentence = [vocabulary.id2word[i] for i in list(word_list)]
     
-    if "</s>" in sentence:
-        return " ".join(sentence[sentence.index("<s>") + 1: sentence.index("</s>")])
-    elif "<s>" not in sentence:
-        return "NULL"
+    if '</s>' in sentence:
+        return ' '.join(sentence[sentence.index('<s>') + 1: sentence.index('</s>')])
+    elif '<s>' not in sentence:
+        return 'NULL'
     else:
-        return " ".join(sentence[sentence.index("<s>") + 1:])
+        return ' '.join(sentence[sentence.index('<s>') + 1:])
