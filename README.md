@@ -12,7 +12,7 @@ Python 3.5.1 以上
 - Cupy 2.3.0
 - gensim 3.3.0  
 
-`pip install -r requirements.txt` で入ると思いますが、入らないようでしたらご連絡ください。
+`pip install -r requirements.txt` で入ると思いますが、入らないようでしたら上記の3つを順番に入れてください。
 
 ## 使い方
 
