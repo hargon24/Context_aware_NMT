@@ -375,3 +375,6 @@ def make_sentence(word_list, vocabulary):
         return 'NULL'
     else:
         return ' '.join(sentence[sentence.index('<s>') + 1:])
+
+def trace(*args):
+	print(datetime.datetime.now(), '...', *args, file=sys.stderr)
