@@ -1,3 +1,4 @@
+## Features
 model: model_name (str)  
 source_train: path to train file of source side.  
 target_train: path to train file of target side.  
@@ -22,7 +23,7 @@ source_vocabulary_file: path to vocabulary file of source side (str)
 target_vocabulary_file: path to vocabulary file of source side (str)  
 
 bilstm_method: [FinalAdd, FinalConcat]  
-attention_method: [Bahdanau, LuongDot, LuongGeneral, LuongConcat]
+attention_method: [Bahdanau, LuongDot, LuongGeneral, LuongConcat]  
 activation_method: [tanh, sigmoid, relu, None]
 
 epoch: The number of training epochs (int)  
@@ -33,8 +34,8 @@ train_batch_size: (int)
 dev_batch_size: (int)  
 test_batch_size: (int)  
 
-use_pretrain = False
-pretrain_epoch = 29
+use_pretrain: (Bool)  
+pretrain_epoch: (int)  
 
 layer_size: (int)  
 source_vocabulary_size: min((int), actual_token_types)  
@@ -45,7 +46,7 @@ use_dropout: (bool)
 dropout_rate: (int)
 use_residual: (bool)
 
-generation_limit: (int)
-use_beamsearch: (bool)
-beam_size: (int)
-make_summarized_log: (bool) 
+generation_limit: (int)  
+use_beamsearch: (bool)  
+beam_size: (int)  
+make_summarized_log: (bool)  

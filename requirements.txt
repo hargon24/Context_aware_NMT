@@ -1,0 +1,3 @@
+cupy==2.3.0
+chainer==3.3.0
+gensim==3.3.0

@@ -493,6 +493,7 @@ class MixedCNMTDecoder(Chain, NetworkFunctions):
         self.context_decoder_states = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]
         self.context_encoder_states = [self.library.zeros((batch_size, self.hidden_size), dtype=self.library.float32)]
 
+
 class AttentionalNMT(Chain):
     def __init__(self, source_vocabulary_size, target_vocabulary_size, layer_size, embed_size, hidden_size, bilstm_method, attention_method, activation_method, use_dropout, dropout_rate, use_residual, generation_limit, use_beamsearch, beam_size, library, source_vocabulary, target_vocabulary, source_word2vec, target_word2vec):
         super(AttentionalNMT, self).__init__(

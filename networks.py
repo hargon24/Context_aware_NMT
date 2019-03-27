@@ -1,5 +1,5 @@
-from chainer import *
 import sys
+from chainer import *
 
 class NetworkFunctions():
     def activate(self, x):
@@ -79,7 +79,6 @@ class FeedForwardNetwork(Chain, NetworkFunctions):
         )
 
     def __call__(self, x):
-        #hidden = self.network(x)
         hidden = self.mask_output(x, self.network(x))
         return self.dropout(self.residual(self.activate(hidden), x))
 
@@ -149,7 +148,6 @@ class UniLSTM(Chain, NetworkFunctions):
 
     def __call__(self, x):
         prev_c, prev_h = self.get_state()
-        #hidden = self.uniLSTM(x)
         hidden = self.mask_output(x, self.uniLSTM(x))
         if prev_c is not None and prev_h is not None:
             c, h = self.get_state()
@@ -274,7 +272,6 @@ class AddBiLSTM(Chain, NetworkFunctions):
         for x_backward in x_list[::-1]:
             prev_c = self.backwardLSTM.c
             prev_h = self.backwardLSTM.h
-            #backward_hidden = self.backwardLSTM(x_backward)
             backward_hidden = self.mask_output(x_backward, self.backwardLSTM(x_backward))
             if prev_c is not None and prev_h is not None:
                 c = self.backwardLSTM.c
@@ -284,7 +281,6 @@ class AddBiLSTM(Chain, NetworkFunctions):
         for x_forward, backward_hidden in zip(x_list, backward_hidden_states): 
             prev_c = self.forwardLSTM.c
             prev_h = self.forwardLSTM.h
-            #forward_hidden = self.forwardLSTM(x_forward)
             forward_hidden = self.mask_output(x_forward, self.forwardLSTM(x_forward))
             if prev_c is not None and prev_h is not None:
                 c = self.forwardLSTM.c
@@ -624,7 +620,7 @@ class RNNDecoder(Chain, NetworkFunctions):
             return AttentionLuongConcat(self.hidden_size)
 
     def get_state(self):
-        return self.lstm.get_state(), self.attention.get_state()
+        return self.lstm.get_state(), None
 
     def set_state(self, encoder_hidden_states, ch_list, attention_chc):
         self.lstm.set_state(ch_list)
@@ -703,7 +699,6 @@ class AttentionLuongConcat(Chain, NetworkFunctions):
         self.batch_size, self.sentence_length, self.encoder_hidden_size = encoder_hidden_states.shape
         encoder_hidden_states_2d = functions.reshape(encoder_hidden_states, (self.batch_size * self.sentence_length, self.encoder_hidden_size))
         self.converted_encoder_hidden_states = functions.reshape(self.mask_output(encoder_hidden_states_2d, self.source_weight_matrix(encoder_hidden_states_2d)), (self.batch_size, self.sentence_length))
-        #self.converted_encoder_hidden_states = functions.reshape(self.source_weight_matrix(functions.reshape(encoder_hidden_states, (self.batch_size * self.sentence_length, self.encoder_hidden_size))), (self.batch_size, self.sentence_length))
 
     def reset_state(self):
         self.encoder_hidden_states = None

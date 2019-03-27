@@ -1,10 +1,8 @@
-#python cnmt.py [method] [mode (train or dev or test)] [config_path] [best_epoch (only testing)]
 import sys
+from method import *
 from chainer import *
 from networks import *
 from utilities import *
-from method import *
-from document_utilities import *
 
 def train(config):
     if (config.mode == 'train' and config.use_pretrain) or len(sys.argv) == 4:

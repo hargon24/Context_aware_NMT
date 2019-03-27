@@ -1,6 +1,7 @@
 import sys
 import numpy
 import random
+import pickle
 import datetime
 from chainer import *
 from itertools import zip_longest
@@ -188,6 +189,7 @@ def load_pretrain_model(src, dst):
                 else:
                     b[1].data = a[1].data
 
+
 def sort_train_batch(pool, batch_size):
     batch = list()
     result = list()
@@ -243,7 +245,6 @@ def make_train_batch(source_path, source_vocab, target_path, target_vocab, batch
             source_sentence = sbos + [source_vocab.word2id[word] for word in sline.strip().split()] + seos
             target_sentence = tbos + [target_vocab.word2id[word] for word in tline.strip().split()] + teos
             document.append((source_sentence, target_sentence))
-
     
     if len(pool) > 0:
         batch = sort_train_batch(pool, batch_size)
@@ -303,9 +304,6 @@ def make_pretest_batch(data_path, vocabulary, batch_size):
     eos = [vocabulary.word2id['</s>']]
     
     for line in open(data_path):
-        #if len(line.strip()) == 0:
-        #    continue
-        
         sentence = bos + [vocabulary.word2id[word] for word in line.strip().split()] + eos
         batch.append(sentence)
         if len(batch) == batch_size:
@@ -314,9 +312,6 @@ def make_pretest_batch(data_path, vocabulary, batch_size):
         
     if len(batch) > 0:
         yield batch
-    else:
-        trace('There is no sentence in this file.')
-        exit()
 
 
 def sort_pretrain_batch(pool, batch_size):
@@ -356,9 +351,6 @@ def make_pretrain_batch(source_path, source_vocab, target_path, target_vocab, ba
     teos = [target_vocab.word2id['</s>']]
     
     for sline, tline in zip(open(source_path), open(target_path)):
-        #if len(sline.strip()) == 0:
-        #    continue
-
         source_sentence = sbos + [source_vocab.word2id[word] for word in sline.strip().split()] + seos
         target_sentence = tbos + [target_vocab.word2id[word] for word in tline.strip().split()] + teos
         pool.append((source_sentence, target_sentence))
@@ -383,8 +375,3 @@ def make_sentence(word_list, vocabulary):
         return 'NULL'
     else:
         return ' '.join(sentence[sentence.index('<s>') + 1:])
-
-
-def trace(*args):
-	print(datetime.datetime.now(), '...', *args, file=sys.stderr)
-	sys.stderr.flush()

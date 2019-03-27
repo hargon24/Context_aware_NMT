@@ -1,9 +1,9 @@
 # Context-aware NMT
 
 ## 概要
-文脈つきニューラル機械翻訳（Context-aware NMT）の実装です。  
-Bawden et al.（NAACL2018）の手法に少し改変を加えたものになっています。  
-これを用いた研究については、言語処理学会第25回年次大会で発表しました。  
+マルチエンコーダ型の文脈つきニューラル機械翻訳（Context-aware NMT）の実装です。  
+[Bawden+, NAACL2018] の手法に少し改変を加えたものになっています。  
+これを用いた研究については、言語処理学会第25回年次大会で発表しました。[[Paper](http://www.anlp.jp/proceedings/annual_meeting/2019/pdf_dir/P1-23.pdf)]  
 
 ## 動作環境
 Python 3.5.1 以上   
@@ -12,14 +12,16 @@ Python 3.5.1 以上
 - Cupy 2.3.0
 - gensim 3.3.0  
 
-動かなければ `pip install -r requirements.txt` をお試しください。
+`pip install -r requirements.txt` で入ると思いますが、入らないようでしたらご連絡ください。
 
 ## 使い方
 
 #### Step1
+対訳コーパスのファイルの前処理をします。  
 文書の境界ごとに、以下のように空行を挟んでください。  
+このとき、言語対ごとに文書数（=空行数）が同じになるよう注意してください。
 
-```:train.ja
+```
 我輩 は 猫 で ある 。
 （中略）
 ありがたい ありがたい 。
@@ -53,6 +55,8 @@ python cnmt.py test config_file test_epoch
 ```
 
 ## おことわり
-このプログラムの大半は[YukioNMT](https://github.com/yukio326/nmt-chainer)をもとに作成しました。  
-特に、`pretrain.py`はほぼこちらの`nmt.py`と同じものです。  
-ありがとうございました。
+このプログラムは[YukioNMT](https://github.com/yukio326/nmt-chainer)をもとに作成しました。  
+特に`pretrain.py`に関しては、ほぼこちらの`nmt.py`と同じものです。  
+
+## その他
+このコードは自由に使っていただいて構いませんが、対外発表等にお使いの場合はこのページのURLを記載いただけますようお願いいたします。
